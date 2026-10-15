@@ -120,7 +120,7 @@ async function loadStats() {
   const candidates = [
     '/api/stats',
     'http://localhost:8001/api/stats',
-    'https://fruit-colleague-brooklyn-threatening.trycloudflare.com/api/stats'
+    'https://disclosure-plymouth-aggregate-theology.trycloudflare.com/api/stats'
   ];
 
   let stats = null;
@@ -191,7 +191,7 @@ async function loadEvents() {
   const candidates = [
     '/api/events',
     'http://localhost:8001/api/events',
-    'https://fruit-colleague-brooklyn-threatening.trycloudflare.com/api/events'
+    'https://disclosure-plymouth-aggregate-theology.trycloudflare.com/api/events'
   ];
 
   let events = null;
@@ -340,7 +340,7 @@ async function loadRegistrations(eventId = '') {
   const candidates = [
     `/api/registrations${qs}`,
     `http://localhost:8001/api/registrations${qs}`,
-    `https://fruit-colleague-brooklyn-threatening.trycloudflare.com/api/registrations${qs}`
+    `https://disclosure-plymouth-aggregate-theology.trycloudflare.com/api/registrations${qs}`
   ];
 
   let registrations = null;

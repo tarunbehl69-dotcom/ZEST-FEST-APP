@@ -152,7 +152,7 @@ async function fetchEvents() {
   const candidates = [
     `/api/events${qs}`,
     `http://localhost:8001/api/events${qs}`,
-    `https://fruit-colleague-brooklyn-threatening.trycloudflare.com/api/events${qs}`
+    `https://disclosure-plymouth-aggregate-theology.trycloudflare.com/api/events${qs}`
   ];
 
   let events = null;
