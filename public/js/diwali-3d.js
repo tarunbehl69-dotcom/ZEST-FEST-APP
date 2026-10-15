@@ -1,11 +1,15 @@
 /**
- * Zenith '26 — 3D Diwali Celebrations Engine
- * Features:
- * 1. 3D Fireworks & Cracker Bursts (Rockets, Anar fountains, Chakri spinners, Sparklers)
- * 2. 3D Glowing Diya Lamps with realistic flickering flames & golden aura
- * 3. Floating 3D Sky Lanterns (Kandils) with warm ambient light
- * 4. Synthesized Festive Audio (Web Audio API - no external sound files needed)
- * 5. Interactive click-to-launch fireworks anywhere on the screen
+ * Zenith '26 — Photorealistic 3D Diwali Celebrations Engine
+ * 
+ * Realistic Pyrotechnics & Illumination:
+ * 1. Multi-Stage Shell Fireworks (Kamuro Willow, Peony, Brocade Crackle) with Additive Blending
+ * 2. Anar Golden Fountains & Ground Chakri 3D Spinning Wheels
+ * 3. 100-Wala Red Cracker Ladi with fluttering red paper confetti & rapid-fire bursts
+ * 4. Realistic 3D Terracotta Earthen Diya with 3D Parallax Tilt, 4-layer fluid flame & rising micro-embers
+ * 5. Screen Illumination (Ambient Flash) synchronized with inverse-square falloff
+ * 6. Binaural / Stereo Panned Acoustic Synthesis (Speed-of-sound delay, sub-bass thud, popcorn crackles)
+ * 7. 3D Floating Sky Lanterns (Kandils) with warm undulating inner glow
+ * 8. Zero external dependencies — pure Canvas 2D + Web Audio API + CSS 3D
  */
 
 (function () {
@@ -13,18 +17,26 @@
 
   // --- Configuration ---
   const CONFIG = {
-    autoFireInterval: 3200, // milliseconds between auto fireworks
-    maxParticles: 400,
+    autoFireInterval: 3200,
     soundEnabled: true,
-    festiveActive: true
+    festiveActive: true,
+    gravity: 0.12,
+    airResistance: 0.965,
+    maxParticles: 800
   };
 
-  // Web Audio Synthesizer for Festive Cracker Sounds
+  // Restore sound preference from localStorage if available
+  try {
+    const savedSound = localStorage.getItem('zenith_diwali_sound');
+    if (savedSound !== null) CONFIG.soundEnabled = savedSound === 'true';
+  } catch (e) {}
+
+  // --- Realistic Spatial Web Audio Synthesizer ---
   let audioCtx = null;
   function getAudioContext() {
     if (!audioCtx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (AudioContext) audioCtx = new AudioContext();
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
     }
     if (audioCtx && audioCtx.state === 'suspended') {
       audioCtx.resume();
@@ -32,104 +44,445 @@
     return audioCtx;
   }
 
-  function playCrackerSound(type) {
-    if (!CONFIG.soundEnabled) return;
+  function createPanner(xNorm) {
+    if (!audioCtx) return null;
     try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
+      if (audioCtx.createStereoPanner) {
+        const panner = audioCtx.createStereoPanner();
+        // Clamped between -0.85 and 0.85
+        panner.pan.value = Math.max(-0.85, Math.min(0.85, (xNorm * 2) - 1));
+        return panner;
+      }
+    } catch (e) {}
+    return null;
+  }
 
-      const now = ctx.currentTime;
-      if (type === 'whistle') {
-        // Rocket launch whistle
+  const SoundEngine = {
+    // Whistling ascent with Doppler pitch bend
+    playAscent(xNorm = 0.5) {
+      if (!CONFIG.soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+
         const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(400, now);
-        osc.frequency.exponentialRampToValueAtTime(1400, now + 0.35);
-        gain.gain.setValueAtTime(0.04, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(280, now);
+        osc.frequency.exponentialRampToValueAtTime(1450, now + 0.42);
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(550, now);
+        filter.frequency.exponentialRampToValueAtTime(1700, now + 0.42);
+        filter.Q.value = 6.0;
+
+        oscGain.gain.setValueAtTime(0.025, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.0008, now + 0.42);
+
+        osc.connect(filter);
+        filter.connect(oscGain);
+
+        const panner = createPanner(xNorm);
+        if (panner) {
+          oscGain.connect(panner);
+          panner.connect(ctx.destination);
+        } else {
+          oscGain.connect(ctx.destination);
+        }
+
         osc.start(now);
-        osc.stop(now + 0.35);
-      } else if (type === 'boom') {
-        // Cracker explosion burst
-        const bufferSize = ctx.sampleRate * 0.4;
+        osc.stop(now + 0.43);
+      } catch (e) {}
+    },
+
+    // High energy explosive blast with deep sub-bass thump & distance delay
+    playBreak(type = 'peony', xNorm = 0.5, distanceDelayMs = 90) {
+      if (!CONFIG.soundEnabled) return;
+      setTimeout(() => {
+        try {
+          const ctx = getAudioContext();
+          if (!ctx) return;
+          const now = ctx.currentTime;
+          const panner = createPanner(xNorm);
+
+          // 1. Deep Sub-Bass Thump (75Hz -> 24Hz)
+          const subOsc = ctx.createOscillator();
+          const subGain = ctx.createGain();
+          subOsc.type = 'sine';
+          subOsc.frequency.setValueAtTime(80, now);
+          subOsc.frequency.exponentialRampToValueAtTime(24, now + 0.38);
+
+          subGain.gain.setValueAtTime(0.26, now);
+          subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+
+          subOsc.connect(subGain);
+          if (panner) {
+            subGain.connect(panner);
+            panner.connect(ctx.destination);
+          } else {
+            subGain.connect(ctx.destination);
+          }
+          subOsc.start(now);
+          subOsc.stop(now + 0.42);
+
+          // 2. High-energy explosive blast noise
+          const bufferSize = Math.floor(ctx.sampleRate * 0.42);
+          const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.055));
+          }
+          const noise = ctx.createBufferSource();
+          noise.buffer = buffer;
+
+          const noiseFilter = ctx.createBiquadFilter();
+          noiseFilter.type = 'lowpass';
+          noiseFilter.frequency.setValueAtTime(type === 'willow' ? 700 : 1300, now);
+          noiseFilter.frequency.exponentialRampToValueAtTime(140, now + 0.38);
+
+          const noiseGain = ctx.createGain();
+          noiseGain.gain.setValueAtTime(0.22, now);
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+
+          noise.connect(noiseFilter);
+          noiseFilter.connect(noiseGain);
+          if (panner) {
+            noiseGain.connect(panner);
+          } else {
+            noiseGain.connect(ctx.destination);
+          }
+          noise.start(now);
+
+          // 3. Staggered Trailing Crackles (Popcorn sizzle)
+          const crackleCount = type === 'crackle' ? 26 : (type === 'willow' ? 14 : 8);
+          for (let i = 0; i < crackleCount; i++) {
+            const delay = 0.12 + Math.random() * 0.95;
+            setTimeout(() => {
+              if (!CONFIG.soundEnabled || !audioCtx) return;
+              const cTime = audioCtx.currentTime;
+              const cOsc = audioCtx.createOscillator();
+              const cGain = audioCtx.createGain();
+              cOsc.type = 'triangle';
+              cOsc.frequency.setValueAtTime(800 + Math.random() * 1400, cTime);
+              cGain.gain.setValueAtTime(0.02 + Math.random() * 0.035, cTime);
+              cGain.gain.exponentialRampToValueAtTime(0.0001, cTime + 0.04);
+              cOsc.connect(cGain);
+              cGain.connect(audioCtx.destination);
+              cOsc.start(cTime);
+              cOsc.stop(cTime + 0.04);
+            }, delay * 1000);
+          }
+        } catch (e) {}
+      }, distanceDelayMs);
+    },
+
+    // Continuous Anar fountain roaring sizzle
+    playAnar(xNorm = 0.5) {
+      if (!CONFIG.soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const duration = 2.4;
+        const bufferSize = Math.floor(ctx.sampleRate * duration);
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
-          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.08));
+          data[i] = (Math.random() * 2 - 1) * 0.65;
         }
         const noise = ctx.createBufferSource();
         noise.buffer = buffer;
+
         const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(450, now);
-        filter.frequency.exponentialRampToValueAtTime(80, now + 0.35);
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(2400, now);
+        filter.Q.value = 3.2;
+
         const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.12, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+        gain.gain.setValueAtTime(0.01, now);
+        gain.gain.linearRampToValueAtTime(0.14, now + 0.25);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        const panner = createPanner(xNorm);
+        if (panner) {
+          gain.connect(panner);
+          panner.connect(ctx.destination);
+        } else {
+          gain.connect(ctx.destination);
+        }
         noise.start(now);
-      } else if (type === 'sparkle') {
-        // Sparkler sparkle sound
+      } catch (e) {}
+    },
+
+    // Snappy firecracker string pop (Ladi)
+    playLadiPop(xNorm = 0.5) {
+      if (!CONFIG.soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(800 + Math.random() * 600, now);
-        gain.gain.setValueAtTime(0.02, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(140 + Math.random() * 100, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.06);
+
+        gain.gain.setValueAtTime(0.24 + Math.random() * 0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+
+        // Add snap noise
+        const snapLen = Math.floor(ctx.sampleRate * 0.05);
+        const sBuf = ctx.createBuffer(1, snapLen, ctx.sampleRate);
+        const sData = sBuf.getChannelData(0);
+        for (let i = 0; i < snapLen; i++) sData[i] = (Math.random() * 2 - 1);
+        const snap = ctx.createBufferSource();
+        snap.buffer = sBuf;
+
+        const snapGain = ctx.createGain();
+        snapGain.gain.setValueAtTime(0.2, now);
+        snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        snap.connect(snapGain);
+
+        const panner = createPanner(xNorm);
+        if (panner) {
+          gain.connect(panner);
+          snapGain.connect(panner);
+          panner.connect(ctx.destination);
+        } else {
+          gain.connect(ctx.destination);
+          snapGain.connect(ctx.destination);
+        }
+
         osc.start(now);
-        osc.stop(now + 0.1);
-      }
-    } catch (e) {
-      // Audio not permitted without user gesture, fail silently
+        osc.stop(now + 0.07);
+        snap.start(now);
+      } catch (e) {}
+    }
+  };
+
+  // --- Authentic Pyrotechnic Color Palettes ---
+  const PALETTES = [
+    {
+      name: 'Kamuro Willow (Pure Incandescent Gold)',
+      colors: ['#FFFFFF', '#FFF7D6', '#FFD700', '#FFB703', '#FB8500', '#D47E00'],
+      style: 'willow'
+    },
+    {
+      name: 'Diwali Saffron & Royal Crimson',
+      colors: ['#FFFFFF', '#FFE066', '#FF8C00', '#FF2A2A', '#D90429', '#7209B7'],
+      style: 'peony'
+    },
+    {
+      name: 'Emerald Sparkler (Barium Green)',
+      colors: ['#FFFFFF', '#B9FFB9', '#00FF66', '#00CC44', '#009933', '#004D1A'],
+      style: 'peony'
+    },
+    {
+      name: 'Royal Sapphire & Electric Violet',
+      colors: ['#FFFFFF', '#E0AAFF', '#C77DFF', '#7B2CBF', '#00F0FF', '#0077B6'],
+      style: 'peony'
+    },
+    {
+      name: 'Brocade Crackle Starburst',
+      colors: ['#FFFFFF', '#FFE8A3', '#FFD166', '#F77F00', '#E63946'],
+      style: 'crackle'
+    }
+  ];
+
+  // --- State Collections ---
+  const rockets = [];
+  const particles = [];
+  const smokePuffs = [];
+  const groundFountains = [];
+  const chakris = [];
+  const confettiBits = [];
+  const lanterns = [];
+  let flashAlpha = 0;
+  let flashColor = '#FFD700';
+
+  // --- Volumetric Smoke Puff ---
+  class Smoke {
+    constructor(x, y, vx, vy, size) {
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.size = size;
+      this.alpha = 0.32 + Math.random() * 0.18;
+      this.growth = 0.3 + Math.random() * 0.35;
+      this.decay = 0.0035 + Math.random() * 0.0035;
+      this.rotation = Math.random() * Math.PI * 2;
+      this.spin = (Math.random() - 0.5) * 0.02;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.size += this.growth;
+      this.alpha -= this.decay;
+      this.rotation += this.spin;
+    }
+    draw(ctx) {
+      if (this.alpha <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, this.alpha);
+      const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+      grad.addColorStop(0, 'rgba(180, 180, 200, 0.45)');
+      grad.addColorStop(0.5, 'rgba(110, 110, 130, 0.18)');
+      grad.addColorStop(1, 'rgba(30, 30, 45, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
-  // --- Particle Systems ---
-  const particles = [];
-  const rockets = [];
-  const lanterns = [];
+  // --- Photorealistic Pyrotechnic Spark with Glowing Trail ---
+  class SparkParticle {
+    constructor(x, y, vx, vy, palette, style = 'peony') {
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.palette = palette;
+      this.style = style;
+      this.age = 0;
+      this.life = style === 'willow' ? (95 + Math.floor(Math.random() * 45)) : (55 + Math.floor(Math.random() * 35));
+      this.size = style === 'willow' ? (2.8 + Math.random() * 1.6) : (2.2 + Math.random() * 1.5);
+      this.trail = [];
+      this.maxTrail = style === 'willow' ? 8 : 4;
+      this.twinkleOffset = Math.random() * Math.PI * 2;
+      this.hasPopped = false;
+    }
 
-  const COLOR_PALETTES = [
-    ['#FFD700', '#FFA500', '#FF4500', '#FF6347', '#FFE4B5'], // Golden Diwali
-    ['#FF1493', '#C71585', '#9400D3', '#BA55D3', '#E6E6FA'], // Magenta & Purple
-    ['#00FF7F', '#32CD32', '#00FA9A', '#7CFC00', '#ADFF2F'], // Emerald Spark
-    ['#00BFFF', '#1E90FF', '#4169E1', '#87CEEB', '#FFFFFF'], // Electric Blue
-    ['#FF8C00', '#FFD700', '#FF0000', '#FFFFFF', '#FFF8DC']  // Traditional Fire
-  ];
+    update() {
+      this.age++;
+      this.trail.push({ x: this.x, y: this.y });
+      if (this.trail.length > this.maxTrail) this.trail.shift();
 
+      this.vx *= CONFIG.airResistance;
+      this.vy *= CONFIG.airResistance;
+      this.vy += (this.style === 'willow' ? 0.075 : CONFIG.gravity);
+
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Drop occasional wispy smoke when cooling
+      if (this.age > this.life * 0.65 && Math.random() > 0.88) {
+        smokePuffs.push(new Smoke(this.x, this.y, this.vx * 0.15, this.vy * 0.15, 3.5));
+      }
+
+      // Brocade Crackle secondary micro-bursts
+      if (this.style === 'crackle' && !this.hasPopped && this.age > this.life * 0.72 && Math.random() > 0.55) {
+        this.hasPopped = true;
+        for (let i = 0; i < 3; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const s = Math.random() * 2.2 + 0.8;
+          const p = new SparkParticle(this.x, this.y, Math.cos(a) * s, Math.sin(a) * s, this.palette, 'peony');
+          p.life = 16;
+          p.size = 1.6;
+          particles.push(p);
+        }
+      }
+    }
+
+    draw(ctx) {
+      const progress = this.age / this.life;
+      if (progress >= 1) return;
+
+      const alpha = Math.pow(1 - progress, 1.2);
+      const colorIndex = Math.min(
+        this.palette.colors.length - 1,
+        Math.floor(progress * this.palette.colors.length)
+      );
+      const color = this.palette.colors[colorIndex];
+
+      // 1. Draw persistent light ribbon
+      if (this.trail.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(this.trail[0].x, this.trail[0].y);
+        for (let i = 1; i < this.trail.length; i++) {
+          ctx.lineTo(this.trail[i].x, this.trail[i].y);
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = this.size * 0.75;
+        ctx.globalAlpha = alpha * 0.45;
+        ctx.stroke();
+      }
+
+      // 2. Optical Bloom & Scintillation Core
+      const twinkle = Math.sin(this.age * 0.45 + this.twinkleOffset) * 0.25 + 0.75;
+      ctx.globalAlpha = Math.max(0, alpha * twinkle);
+
+      // Outer Glow Aura
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * 2.0, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.shadowBlur = this.style === 'willow' ? 14 : 9;
+      ctx.shadowColor = color;
+      ctx.fill();
+
+      // Incandescent White Core
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, Math.max(1, this.size * 0.65), 0, Math.PI * 2);
+      ctx.fillStyle = progress < 0.22 ? '#FFFFFF' : color;
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#FFFFFF';
+      ctx.fill();
+    }
+  }
+
+  // --- Ascending Aerial Rocket ---
   class Rocket {
-    constructor(startX, startY, targetX, targetY, palette) {
+    constructor(startX, startY, targetX, targetY) {
       this.x = startX;
       this.y = startY;
       this.targetX = targetX;
       this.targetY = targetY;
       const angle = Math.atan2(targetY - startY, targetX - startX);
-      const speed = 12 + Math.random() * 4;
+      const speed = 15.5 + Math.random() * 4.5;
       this.vx = Math.cos(angle) * speed;
       this.vy = Math.sin(angle) * speed;
-      this.palette = palette || COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)];
-      this.color = this.palette[0];
+      this.palette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
       this.trail = [];
       this.dead = false;
-      playCrackerSound('whistle');
+      this.sparkTimer = 0;
+      SoundEngine.playAscent(startX / window.innerWidth);
     }
 
     update() {
-      this.trail.push({ x: this.x, y: this.y, alpha: 0.9 });
-      if (this.trail.length > 8) this.trail.shift();
+      this.trail.push({ x: this.x, y: this.y });
+      if (this.trail.length > 12) this.trail.shift();
 
       this.x += this.vx;
       this.y += this.vy;
-      this.vy += 0.08; // mild gravity
+      this.vy += 0.085; // subtle arc
 
-      // Check if reached apex or target height
+      this.sparkTimer++;
+      if (this.sparkTimer % 2 === 0) {
+        smokePuffs.push(new Smoke(this.x, this.y + 4, (Math.random() - 0.5) * 0.7, 1.2, 4.5));
+        // Exhaust golden sparks
+        const p = new SparkParticle(
+          this.x,
+          this.y + 3,
+          (Math.random() - 0.5) * 1.6,
+          Math.random() * 2.5 + 1.2,
+          PALETTES[0],
+          'peony'
+        );
+        p.life = 20;
+        p.size = 1.8;
+        particles.push(p);
+      }
+
       if (this.vy >= 0 || this.y <= this.targetY) {
         this.dead = true;
         this.explode();
@@ -137,210 +490,307 @@
     }
 
     draw(ctx) {
-      ctx.save();
+      // Draw fiery propulsion exhaust
       for (let i = 0; i < this.trail.length; i++) {
         const pt = this.trail[i];
+        const progress = i / this.trail.length;
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 200, 100, ${pt.alpha * (i / this.trail.length)})`;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = '#FFA500';
+        ctx.arc(pt.x, pt.y, 2.8 * progress, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 170, 30, ${progress * 0.8})`;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#FF8C00';
         ctx.fill();
       }
+
+      // Blazing White-Hot Rocket Head
       ctx.beginPath();
-      ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, 4.2, 0, Math.PI * 2);
       ctx.fillStyle = '#FFFFFF';
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = '#FFD700';
+      ctx.fill();
+    }
+
+    explode() {
+      const xNorm = this.x / window.innerWidth;
+      SoundEngine.playBreak(this.palette.style, xNorm, 80);
+
+      // Trigger ambient screen flash
+      flashAlpha = 0.38;
+      flashColor = this.palette.colors[2] || '#FFD700';
+
+      const count = this.palette.style === 'willow' ? 140 : 110;
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        // 3D spherical burst velocity
+        const speed = (Math.random() * 8.5 + 2.0);
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+        particles.push(new SparkParticle(this.x, this.y, vx, vy, this.palette, this.palette.style));
+      }
+
+      // Central explosion flash cloud
+      for (let i = 0; i < 9; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = Math.random() * 1.8;
+        smokePuffs.push(new Smoke(this.x, this.y, Math.cos(a) * sp, Math.sin(a) * sp, 14));
+      }
+    }
+  }
+
+  // --- Towering Golden Anar Fountain ---
+  class GroundAnar {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.age = 0;
+      this.duration = 130;
+      this.dead = false;
+      SoundEngine.playAnar(x / window.innerWidth);
+    }
+
+    update() {
+      this.age++;
+      if (this.age > this.duration) {
+        this.dead = true;
+        return;
+      }
+
+      // Bell curve eruptive intensity
+      const intensity = Math.sin((this.age / this.duration) * Math.PI);
+      const sparkRate = Math.floor(intensity * 10 + 3);
+
+      for (let i = 0; i < sparkRate; i++) {
+        const spread = (Math.random() - 0.5) * 0.72;
+        const angle = -Math.PI / 2 + spread;
+        const speed = (intensity * 8.5 + 6.0) + Math.random() * 6;
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+        const p = new SparkParticle(this.x, this.y, vx, vy, PALETTES[0], 'willow');
+        p.life = 45 + Math.random() * 25;
+        p.size = 2.4;
+        particles.push(p);
+      }
+
+      // Billowing fragrant smoke
+      if (Math.random() > 0.35) {
+        smokePuffs.push(new Smoke(
+          this.x + (Math.random() - 0.5) * 12,
+          this.y - 12,
+          (Math.random() - 0.5) * 1.4,
+          -1.6 - Math.random() * 0.8,
+          7
+        ));
+      }
+    }
+
+    draw(ctx) {
+      // Dazzling incandescence at cone apex
+      ctx.save();
+      const radius = 35 + Math.sin(this.age * 0.4) * 12;
+      const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, radius);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+      grad.addColorStop(0.3, 'rgba(255, 215, 0, 0.7)');
+      grad.addColorStop(0.7, 'rgba(255, 100, 0, 0.35)');
+      grad.addColorStop(1, 'rgba(255, 50, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // --- Ground Chakri (Spinning Firewheel with 3D Perspective) ---
+  class GroundChakri {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.age = 0;
+      this.duration = 140;
+      this.angle = 0;
+      this.spinSpeed = 0.38;
+      this.dead = false;
+      SoundEngine.playAnar(x / window.innerWidth);
+    }
+
+    update() {
+      this.age++;
+      this.angle += this.spinSpeed;
+      if (this.age > this.duration) {
+        this.dead = true;
+        return;
+      }
+
+      // Sputter & skitter on floor slightly
+      this.x += (Math.random() - 0.5) * 1.2;
+
+      // 3 opposing spiral fire nozzles
+      for (let arm = 0; arm < 3; arm++) {
+        const jetAngle = this.angle + (arm * (Math.PI * 2 / 3));
+        const speed = 7.0 + Math.random() * 5.0;
+        const vx = Math.cos(jetAngle) * speed;
+        // 3D perspective floor squish (0.32 height ratio)
+        const vy = Math.sin(jetAngle) * speed * 0.32;
+        const p = new SparkParticle(this.x, this.y, vx, vy, PALETTES[1], 'peony');
+        p.life = 36;
+        p.size = 2.2;
+        particles.push(p);
+      }
+    }
+
+    draw(ctx) {
+      ctx.save();
+      // Glowing 3D ground ellipse
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, 52, 18, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 140, 0, 0.3)';
+      ctx.shadowBlur = 24;
+      ctx.shadowColor = '#FF8C00';
+      ctx.fill();
+
+      // Spinning metallic core
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, 14, 5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.shadowBlur = 10;
       ctx.shadowColor = '#FFD700';
       ctx.fill();
       ctx.restore();
     }
+  }
 
-    explode() {
-      playCrackerSound('boom');
-      const particleCount = 80 + Math.floor(Math.random() * 40);
-      const style = Math.random();
+  // --- 100-Wala Red Cracker Ladi (Garland Burst) ---
+  class CrackerLadi {
+    constructor(startX, startY) {
+      this.startX = startX;
+      this.startY = startY;
+      this.count = 28;
+      this.current = 0;
+      this.interval = 55; // ms between pops
+      this.active = true;
+      this.popNext();
+    }
 
-      for (let i = 0; i < particleCount; i++) {
-        let vx, vy;
-        if (style > 0.4) {
-          // Spherical 3D burst
-          const angle = Math.random() * Math.PI * 2;
-          const speed = (Math.random() * 7 + 2);
-          const spreadZ = (Math.random() * 2 - 1); // 3D depth vector
-          vx = Math.cos(angle) * speed;
-          vy = Math.sin(angle) * speed;
-        } else {
-          // Heart or Ring formation
-          const angle = (i / particleCount) * Math.PI * 2;
-          const speed = 4 + Math.random() * 2;
-          vx = Math.cos(angle) * speed;
-          vy = Math.sin(angle) * speed;
-        }
-
-        const color = this.palette[Math.floor(Math.random() * this.palette.length)];
-        particles.push(new Particle(this.x, this.y, vx, vy, color));
+    popNext() {
+      if (this.current >= this.count) {
+        this.active = false;
+        return;
       }
 
-      // Add a flash ring
-      particles.push(new Shockwave(this.x, this.y, this.palette[0]));
+      const x = this.startX + (this.current % 4 - 1.5) * 18;
+      const y = this.startY + this.current * 10;
+      const xNorm = x / window.innerWidth;
+
+      SoundEngine.playLadiPop(xNorm);
+
+      // Micro bright flash
+      flashAlpha = Math.max(flashAlpha, 0.22);
+      flashColor = '#FFF5CC';
+
+      // Blast sparks
+      for (let i = 0; i < 18; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 2.5 + Math.random() * 5.0;
+        const p = new SparkParticle(x, y, Math.cos(a) * sp, Math.sin(a) * sp, PALETTES[1], 'peony');
+        p.life = 22;
+        p.size = 2.0;
+        particles.push(p);
+      }
+
+      // Red paper confetti fragments
+      for (let i = 0; i < 6; i++) {
+        confettiBits.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * 4,
+          vy: -Math.random() * 3 - 1,
+          size: 4 + Math.random() * 4,
+          color: Math.random() > 0.2 ? '#D90429' : '#FFD700',
+          rotation: Math.random() * 360,
+          spin: (Math.random() - 0.5) * 10,
+          alpha: 1.0,
+          age: 0,
+          life: 80 + Math.random() * 40
+        });
+      }
+
+      // Smoke puff
+      smokePuffs.push(new Smoke(x, y, (Math.random() - 0.5) * 0.8, -0.8, 8));
+
+      this.current++;
+      setTimeout(() => this.popNext(), this.interval + (Math.random() - 0.5) * 20);
     }
   }
 
-  class Particle {
-    constructor(x, y, vx, vy, color) {
-      this.x = x;
-      this.y = y;
-      this.vx = vx;
-      this.vy = vy;
-      this.color = color;
-      this.alpha = 1;
-      this.decay = 0.012 + Math.random() * 0.015;
-      this.friction = 0.95;
-      this.gravity = 0.12;
-      this.size = 2.5 + Math.random() * 2.5;
-      this.flicker = Math.random() > 0.3;
-    }
-
-    update() {
-      this.vx *= this.friction;
-      this.vy *= this.friction;
-      this.vy += this.gravity;
-      this.x += this.vx;
-      this.y += this.vy;
-      this.alpha -= this.decay;
-    }
-
-    draw(ctx) {
-      if (this.alpha <= 0) return;
-      ctx.save();
-      const currentAlpha = this.flicker && Math.random() > 0.4 ? this.alpha * 0.6 : this.alpha;
-      ctx.globalAlpha = Math.max(0, currentAlpha);
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-      ctx.fillStyle = this.color;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = this.color;
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  class Shockwave {
-    constructor(x, y, color) {
-      this.x = x;
-      this.y = y;
-      this.color = color;
-      this.radius = 2;
-      this.maxRadius = 60 + Math.random() * 30;
-      this.alpha = 0.8;
-    }
-
-    update() {
-      this.radius += 4;
-      this.alpha = Math.max(0, 1 - (this.radius / this.maxRadius));
-    }
-
-    draw(ctx) {
-      if (this.alpha <= 0) return;
-      ctx.save();
-      ctx.globalAlpha = this.alpha * 0.5;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.strokeStyle = this.color;
-      ctx.lineWidth = 2.5;
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = this.color;
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  // 3D Floating Lantern (Sky Kandil)
+  // --- 3D Floating Sky Lanterns (Kandils) ---
   class SkyLantern {
-    constructor(canvasWidth, canvasHeight) {
-      this.x = Math.random() * canvasWidth;
-      this.y = canvasHeight + 40 + Math.random() * 100;
-      this.vx = (Math.random() - 0.5) * 0.5;
-      this.vy = -(0.5 + Math.random() * 0.6);
-      this.size = 18 + Math.random() * 14;
-      this.alpha = 0.85;
+    constructor(w, h) {
+      this.x = Math.random() * w;
+      this.y = h + 50 + Math.random() * 200;
+      this.vx = (Math.random() - 0.5) * 0.35;
+      this.vy = -(0.5 + Math.random() * 0.55);
+      this.size = 22 + Math.random() * 14;
       this.wobble = Math.random() * Math.PI * 2;
-      this.wobbleSpeed = 0.02 + Math.random() * 0.02;
     }
 
-    update(canvasHeight) {
-      this.wobble += this.wobbleSpeed;
+    update(h) {
+      this.wobble += 0.02;
       this.x += this.vx + Math.sin(this.wobble) * 0.4;
       this.y += this.vy;
-      if (this.y < -60) {
-        this.y = canvasHeight + 40;
+      if (this.y < -90) {
+        this.y = h + 60;
         this.x = Math.random() * window.innerWidth;
       }
     }
 
     draw(ctx) {
       ctx.save();
-      ctx.globalAlpha = this.alpha;
       ctx.translate(this.x, this.y);
 
-      // Lantern Body
-      const gradient = ctx.createLinearGradient(0, -this.size, 0, this.size);
-      gradient.addColorStop(0, '#FF4500');
-      gradient.addColorStop(0.6, '#FFA500');
-      gradient.addColorStop(1, '#FFD700');
+      // Octagonal Lantern Silhouette & Radial Warm Glow
+      const grad = ctx.createLinearGradient(0, -this.size * 0.6, 0, this.size * 0.6);
+      grad.addColorStop(0, '#E65100');
+      grad.addColorStop(0.45, '#FF8F00');
+      grad.addColorStop(1, '#FFD54F');
 
       ctx.beginPath();
-      ctx.moveTo(-this.size * 0.4, -this.size * 0.6);
-      ctx.lineTo(this.size * 0.4, -this.size * 0.6);
-      ctx.lineTo(this.size * 0.55, this.size * 0.5);
-      ctx.lineTo(-this.size * 0.55, this.size * 0.5);
+      ctx.moveTo(-this.size * 0.38, -this.size * 0.55);
+      ctx.lineTo(this.size * 0.38, -this.size * 0.55);
+      ctx.lineTo(this.size * 0.52, this.size * 0.45);
+      ctx.lineTo(-this.size * 0.52, this.size * 0.45);
       ctx.closePath();
-      ctx.fillStyle = gradient;
-      ctx.shadowBlur = 24;
-      ctx.shadowColor = '#FF8C00';
+
+      ctx.fillStyle = grad;
+      ctx.shadowBlur = 32;
+      ctx.shadowColor = '#FF8F00';
       ctx.fill();
 
-      // Flame core
+      // Inner Flickering Candle Flame
+      const flamePulse = Math.sin(this.wobble * 3) * 0.15 + 0.85;
       ctx.beginPath();
-      ctx.arc(0, this.size * 0.25, this.size * 0.18, 0, Math.PI * 2);
+      ctx.arc(0, this.size * 0.22, this.size * 0.16 * flamePulse, 0, Math.PI * 2);
       ctx.fillStyle = '#FFFFFF';
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = '#FFFFE0';
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = '#FFFDE7';
       ctx.fill();
 
       ctx.restore();
     }
   }
 
-  // --- Ground Anar / Flower Pot Fountain ---
-  function launchAnarFountain(originX, originY) {
-    playCrackerSound('sparkle');
-    const sparkCount = 60;
-    for (let i = 0; i < sparkCount; i++) {
-      setTimeout(() => {
-        const spread = (Math.random() - 0.5) * 4;
-        const upwardSpeed = -(6 + Math.random() * 7);
-        const p = new Particle(originX, originY, spread, upwardSpeed, Math.random() > 0.3 ? '#FFD700' : '#FFFFFF');
-        p.decay = 0.025;
-        p.gravity = 0.18;
-        particles.push(p);
-      }, i * 20);
-    }
-  }
-
-  // --- Main Engine Initialization ---
-  function initDiwaliEngine() {
-    // 1. Create transparent background canvas for 3D Cracker Fireworks
+  // --- Main Animation Engine Initialization ---
+  function initEngine() {
+    // 1. Fireworks Overlay Canvas
     const canvas = document.createElement('canvas');
-    canvas.id = 'diwali-fireworks-canvas';
+    canvas.id = 'diwali-canvas-layer';
     canvas.style.position = 'fixed';
     canvas.style.top = '0';
     canvas.style.left = '0';
     canvas.style.width = '100vw';
     canvas.style.height = '100vh';
-    canvas.style.pointerEvents = 'none'; // let user click through to buttons
-    canvas.style.zIndex = '35'; // above background, below modals and interactive buttons
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '35';
     document.body.appendChild(canvas);
 
     const ctx = canvas.getContext('2d');
@@ -352,361 +802,521 @@
     window.addEventListener('resize', resize);
     resize();
 
-    // Initialize 12 background sky lanterns
-    for (let i = 0; i < 12; i++) {
+    // Spawn 10 background sky lanterns
+    for (let i = 0; i < 10; i++) {
       lanterns.push(new SkyLantern(canvas.width, canvas.height));
     }
 
-    // Main Animation Loop
-    function animate() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // High-performance Render Loop
+    function render() {
+      // 1. Trail fade pass (Persistence of Vision)
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.24)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       if (CONFIG.festiveActive) {
-        // Draw & update lanterns
+        // 2. Ambient Screen Flash
+        if (flashAlpha > 0.005) {
+          ctx.save();
+          ctx.globalAlpha = flashAlpha;
+          ctx.fillStyle = flashColor;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.restore();
+          flashAlpha *= 0.87;
+        }
+
+        // 3. Sky Lanterns
         for (let i = 0; i < lanterns.length; i++) {
           lanterns[i].update(canvas.height);
           lanterns[i].draw(ctx);
         }
 
-        // Update & draw active rockets
+        // 4. Volumetric Smoke (Source-Over)
+        for (let i = smokePuffs.length - 1; i >= 0; i--) {
+          smokePuffs[i].update();
+          smokePuffs[i].draw(ctx);
+          if (smokePuffs[i].alpha <= 0) smokePuffs.splice(i, 1);
+        }
+
+        // 5. Red Paper Confetti (Ladi remnants)
+        for (let i = confettiBits.length - 1; i >= 0; i--) {
+          const c = confettiBits[i];
+          c.age++;
+          c.x += c.vx;
+          c.y += c.vy;
+          c.vy += 0.09;
+          c.rotation += c.spin;
+          c.alpha = 1 - (c.age / c.life);
+          if (c.age >= c.life) {
+            confettiBits.splice(i, 1);
+            continue;
+          }
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.rotate((c.rotation * Math.PI) / 180);
+          ctx.fillStyle = c.color;
+          ctx.globalAlpha = Math.max(0, c.alpha);
+          ctx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size * 0.7);
+          ctx.restore();
+        }
+
+        // 6. Pyrotechnic Sparks & Rockets with ADDITIVE BLENDING (Photorealistic Bloom!)
+        ctx.globalCompositeOperation = 'lighter';
+
+        // Draw Ground Chakris
+        for (let i = chakris.length - 1; i >= 0; i--) {
+          chakris[i].update();
+          chakris[i].draw(ctx);
+          if (chakris[i].dead) chakris.splice(i, 1);
+        }
+
+        // Draw Ground Anars
+        for (let i = groundFountains.length - 1; i >= 0; i--) {
+          groundFountains[i].update();
+          groundFountains[i].draw(ctx);
+          if (groundFountains[i].dead) groundFountains.splice(i, 1);
+        }
+
+        // Draw Rockets
         for (let i = rockets.length - 1; i >= 0; i--) {
           rockets[i].update();
           rockets[i].draw(ctx);
-          if (rockets[i].dead) {
-            rockets.splice(i, 1);
-          }
+          if (rockets[i].dead) rockets.splice(i, 1);
         }
 
-        // Update & draw particles
+        // Draw Sparks
         for (let i = particles.length - 1; i >= 0; i--) {
-          const p = particles[i];
-          p.update();
-          p.draw(ctx);
-          if (p.alpha <= 0) {
-            particles.splice(i, 1);
-          }
+          particles[i].update();
+          particles[i].draw(ctx);
+          if (particles[i].age >= particles[i].life) particles.splice(i, 1);
         }
       }
 
-      requestAnimationFrame(animate);
+      requestAnimationFrame(render);
     }
-    requestAnimationFrame(animate);
+    requestAnimationFrame(render);
 
-    // Auto-fire celebratory rockets
+    // Auto launch celebratory shells every ~3.2s
     setInterval(() => {
-      if (!CONFIG.festiveActive) return;
-      if (document.hidden) return;
-      const startX = Math.random() * (canvas.width * 0.8) + (canvas.width * 0.1);
-      const targetX = startX + (Math.random() - 0.5) * 160;
-      const targetY = Math.random() * (canvas.height * 0.45) + 80;
+      if (!CONFIG.festiveActive || document.hidden) return;
+      const startX = Math.random() * (canvas.width * 0.75) + (canvas.width * 0.12);
+      const targetX = startX + (Math.random() - 0.5) * 220;
+      const targetY = Math.random() * (canvas.height * 0.42) + 75;
       rockets.push(new Rocket(startX, canvas.height, targetX, targetY));
     }, CONFIG.autoFireInterval);
 
-    // Click anywhere on body (except on interactive inputs/buttons) to launch user's firework rocket
+    // Click anywhere to launch a firework rocket directly to that spot
     document.addEventListener('click', (e) => {
       if (!CONFIG.festiveActive) return;
-      const target = e.target;
-      // Do not intercept input fields, select dropdowns, or forms
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-        return;
-      }
-      const startX = e.clientX + (Math.random() - 0.5) * 60;
+      const t = e.target;
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.closest('button')) return;
+      const startX = e.clientX + (Math.random() - 0.5) * 80;
       rockets.push(new Rocket(startX, canvas.height, e.clientX, e.clientY));
     });
 
-    // 2. Inject 3D Diya CSS Styles & Animations
-    injectDiwaliStyles();
-
-    // 3. Inject Festive Header Bar & 3D Diyas into the Hero section
-    injectFestiveUI();
+    injectStyles();
+    injectUI();
   }
 
-  function injectDiwaliStyles() {
+  // --- Dynamic CSS 3D Styles ---
+  function injectStyles() {
+    if (document.getElementById('diwali-realistic-styles')) return;
     const style = document.createElement('style');
-    style.id = 'diwali-3d-styles';
+    style.id = 'diwali-realistic-styles';
     style.textContent = `
-      /* 3D Diya Container */
-      .diya-3d-wrapper {
-        position: relative;
+      /* True 3D Terracotta Diya with Interactive Parallax */
+      .diwali-3d-diya-stage {
+        perspective: 900px;
         display: inline-flex;
         flex-direction: column;
         align-items: center;
         justify-content: flex-end;
-        width: 72px;
-        height: 72px;
+        width: 100px;
+        height: 100px;
         cursor: pointer;
         user-select: none;
-        perspective: 600px;
-        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-      }
-      .diya-3d-wrapper:hover {
-        transform: scale(1.15) translateY(-4px);
-      }
-      .diya-3d-wrapper:active {
-        transform: scale(0.95);
-      }
-
-      /* 3D Terracotta Earthen Bowl */
-      .diya-clay-bowl {
+        transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
         position: relative;
-        width: 60px;
-        height: 24px;
-        background: radial-gradient(ellipse at 50% 20%, #B85028 0%, #7A280D 60%, #4A1405 100%);
-        border-radius: 0 0 50px 50px / 0 0 30px 30px;
-        box-shadow: 
-          0 8px 20px rgba(0, 0, 0, 0.6),
-          inset 0 4px 8px rgba(255, 140, 0, 0.4),
-          inset 0 -3px 6px rgba(0, 0, 0, 0.7);
-        border: 1px solid rgba(255, 165, 0, 0.3);
+      }
+      .diwali-3d-diya-stage:hover {
+        transform: scale(1.15) translateY(-6px);
+      }
+      .diwali-3d-diya-stage:active {
+        transform: scale(0.92);
       }
 
-      /* Diya Lip / Rim */
-      .diya-clay-rim {
-        position: absolute;
-        top: -6px;
-        left: 2px;
-        width: 56px;
-        height: 12px;
-        background: radial-gradient(ellipse at 50% 50%, #D35400 0%, #A04000 70%, #6E2C00 100%);
-        border-radius: 50%;
-        border: 1px solid rgba(255, 215, 0, 0.4);
-      }
-
-      /* Brass Wick Base */
-      .diya-wick-base {
-        position: absolute;
-        top: -3px;
-        left: 24px;
-        width: 8px;
-        height: 6px;
-        background: #2C1A0D;
-        border-radius: 2px;
-      }
-
-      /* Realistic Flickering Flame */
-      .diya-flame {
-        position: absolute;
-        bottom: 22px;
-        left: 21px;
-        width: 18px;
-        height: 32px;
-        background: linear-gradient(to top, rgba(255,255,255,0.95) 0%, #FFE066 30%, #FF9900 65%, #FF3300 95%, transparent 100%);
-        border-radius: 50% 50% 35% 35% / 80% 80% 25% 25%;
-        filter: drop-shadow(0 0 10px #FF9900) drop-shadow(0 0 20px #FF4500) drop-shadow(0 0 35px #FFD700);
-        animation: diyaFlameFlicker 1.8s infinite ease-in-out alternate;
-        transform-origin: 50% 90%;
-      }
-
-      /* Inner Flame Core */
-      .diya-flame-inner {
-        position: absolute;
-        bottom: 2px;
-        left: 4px;
-        width: 10px;
-        height: 18px;
-        background: radial-gradient(ellipse at 50% 90%, #FFFFFF 0%, #FFF275 60%, transparent 100%);
-        border-radius: 50% 50% 40% 40% / 80% 80% 30% 30%;
-        animation: diyaInnerFlicker 0.9s infinite ease-in-out alternate;
-      }
-
-      /* Radiant Warm Ambient Light */
-      .diya-aura {
-        position: absolute;
-        bottom: 10px;
-        left: 5px;
-        width: 50px;
-        height: 50px;
-        background: radial-gradient(circle, rgba(255, 170, 0, 0.45) 0%, rgba(255, 69, 0, 0.15) 55%, transparent 75%);
-        border-radius: 50%;
-        animation: diyaAuraPulse 2.4s infinite ease-in-out alternate;
-        pointer-events: none;
-      }
-
-      @keyframes diyaFlameFlicker {
-        0% { transform: scale(1) rotate(-1.5deg); }
-        25% { transform: scale(1.06, 0.95) rotate(2deg) skewX(2deg); }
-        50% { transform: scale(0.96, 1.05) rotate(-2.5deg); }
-        75% { transform: scale(1.04, 0.98) rotate(1.5deg) skewX(-1.5deg); }
-        100% { transform: scale(1.02, 1.02) rotate(-0.5deg); }
-      }
-
-      @keyframes diyaInnerFlicker {
-        0% { transform: scale(1); opacity: 0.95; }
-        50% { transform: scale(1.1, 0.95); opacity: 0.8; }
-        100% { transform: scale(0.95, 1.05); opacity: 1; }
-      }
-
-      @keyframes diyaAuraPulse {
-        0% { transform: scale(0.9); opacity: 0.5; }
-        100% { transform: scale(1.2); opacity: 0.85; }
-      }
-
-      /* Festive Diwali Ribbon Banner */
-      .diwali-celebration-banner {
-        background: linear-gradient(90deg, rgba(230,81,0,0.85) 0%, rgba(142,36,170,0.9) 50%, rgba(230,81,0,0.85) 100%);
-        border-bottom: 1px solid rgba(255,215,0,0.35);
-        color: #FFF8E1;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.4px;
-        padding: 8px 16px;
+      /* 3D Container with Dynamic Tilt */
+      .diya-3d-wrapper {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        transform-style: preserve-3d;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 12px;
-        box-shadow: 0 4px 15px rgba(255,140,0,0.25);
+      }
+
+      /* Clay Terracotta Bowl */
+      .diya-earthen-bowl {
+        position: relative;
+        width: 82px;
+        height: 32px;
+        background: radial-gradient(ellipse at 50% 20%, #C85A27 0%, #872E0F 55%, #461405 100%);
+        border-radius: 0 0 75px 75px / 0 0 40px 40px;
+        box-shadow: 
+          0 14px 30px rgba(0, 0, 0, 0.85),
+          inset 0 4px 10px rgba(255, 180, 50, 0.5),
+          inset 0 -5px 10px rgba(0, 0, 0, 0.85);
+        border: 1px solid rgba(255, 185, 60, 0.4);
+        margin-top: 26px;
+      }
+
+      /* Ghee Reservoir & Hand-Carved Rim */
+      .diya-oil-rim {
+        position: absolute;
+        top: -9px;
+        left: 2px;
+        width: 78px;
+        height: 18px;
+        background: radial-gradient(ellipse at 50% 50%, #522C00 0%, #2E1500 50%, #D45400 82%, #8E2B00 100%);
+        border-radius: 50%;
+        border: 1px solid rgba(255, 215, 0, 0.5);
+        box-shadow: inset 0 2px 6px rgba(255, 215, 0, 0.3);
+      }
+
+      /* Charred Cotton Wick */
+      .diya-cotton-wick {
+        position: absolute;
+        top: -6px;
+        left: 34px;
+        width: 10px;
+        height: 10px;
+        background: radial-gradient(circle, #150A00 45%, #663300 100%);
+        border-radius: 3px;
+        box-shadow: 0 0 4px rgba(255, 100, 0, 0.6);
+      }
+
+      /* Layer 1: Photorealistic Fluid Flickering Flame */
+      .diya-flame-envelope {
+        position: absolute;
+        bottom: 30px;
+        left: 28px;
+        width: 26px;
+        height: 46px;
+        background: linear-gradient(to top, rgba(255,255,255,0.98) 0%, #FFE066 22%, #FF9900 58%, #E63900 90%, transparent 100%);
+        border-radius: 50% 50% 35% 35% / 80% 80% 25% 25%;
+        filter: 
+          drop-shadow(0 0 8px #FF8C00) 
+          drop-shadow(0 0 20px #FF4500) 
+          drop-shadow(0 0 38px #FFD700);
+        animation: realisticFlameFlutter 1.6s infinite ease-in-out alternate;
+        transform-origin: 50% 92%;
+        pointer-events: none;
+      }
+
+      /* Layer 2: Blue Combustion Base (Real hydrocarbon flame signature) */
+      .diya-flame-blue-base {
+        position: absolute;
+        bottom: -2px;
+        left: 7px;
+        width: 12px;
+        height: 8px;
+        background: radial-gradient(ellipse at 50% 100%, #00C8FF 0%, rgba(30,144,255,0.65) 55%, transparent 100%);
+        border-radius: 50%;
+        filter: blur(1px);
+      }
+
+      /* Layer 3: White-Hot Core */
+      .diya-flame-hot-core {
+        position: absolute;
+        bottom: 5px;
+        left: 7px;
+        width: 12px;
+        height: 22px;
+        background: radial-gradient(ellipse at 50% 85%, #FFFFFF 0%, #FFF3B0 60%, transparent 100%);
+        border-radius: 50% 50% 35% 35% / 80% 80% 25% 25%;
+        animation: realisticCorePulse 0.8s infinite ease-in-out alternate;
+      }
+
+      /* Ambient Pulsing Glow */
+      .diya-radiation-aura {
+        position: absolute;
+        bottom: 12px;
+        left: 10px;
+        width: 80px;
+        height: 80px;
+        background: radial-gradient(circle, rgba(255, 180, 0, 0.45) 0%, rgba(255, 70, 0, 0.18) 55%, transparent 75%);
+        border-radius: 50%;
+        animation: auraBreathing 2.0s infinite ease-in-out alternate;
+        pointer-events: none;
+      }
+
+      /* Ascending Micro Sparkles */
+      .diya-micro-ember {
+        position: absolute;
+        width: 3px;
+        height: 3px;
+        background: #FFD700;
+        border-radius: 50%;
+        box-shadow: 0 0 6px #FF8C00;
+        animation: ascendEmber 1.8s infinite ease-out;
+        opacity: 0;
+      }
+      .diya-micro-ember:nth-child(1) { left: 35px; animation-delay: 0.2s; }
+      .diya-micro-ember:nth-child(2) { left: 45px; animation-delay: 0.8s; }
+      .diya-micro-ember:nth-child(3) { left: 52px; animation-delay: 1.4s; }
+
+      @keyframes ascendEmber {
+        0% { transform: translateY(0) scale(1); opacity: 0.9; }
+        50% { transform: translateY(-25px) translateX(4px) scale(0.8); opacity: 0.6; }
+        100% { transform: translateY(-50px) translateX(-6px) scale(0.2); opacity: 0; }
+      }
+
+      @keyframes realisticFlameFlutter {
+        0% { transform: scale(1) rotate(-1.5deg); }
+        22% { transform: scale(1.08, 0.93) rotate(2.2deg) skewX(2.5deg); }
+        48% { transform: scale(0.94, 1.06) rotate(-3.0deg); }
+        72% { transform: scale(1.05, 0.97) rotate(2.0deg) skewX(-1.8deg); }
+        100% { transform: scale(1.02, 1.02) rotate(-1.0deg); }
+      }
+
+      @keyframes realisticCorePulse {
+        0% { transform: scale(0.94); opacity: 0.95; }
+        50% { transform: scale(1.09, 0.95); opacity: 0.8; }
+        100% { transform: scale(0.97, 1.05); opacity: 1; }
+      }
+
+      @keyframes auraBreathing {
+        0% { transform: scale(0.85); opacity: 0.5; }
+        100% { transform: scale(1.25); opacity: 0.95; }
+      }
+
+      /* Festive Action Bar */
+      .diwali-ribbon {
+        background: linear-gradient(90deg, #BF360C 0%, #4A148C 50%, #BF360C 100%);
+        border-bottom: 1px solid rgba(255, 215, 0, 0.45);
+        padding: 9px 16px;
+        color: #FFFDE7;
+        font-size: 13px;
+        font-weight: 600;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        box-shadow: 0 4px 22px rgba(255, 110, 0, 0.35);
         position: relative;
         z-index: 50;
       }
 
-      /* Glowing Diwali Toggle Button */
-      .diwali-toggle-btn {
-        background: linear-gradient(135deg, #FF6F00 0%, #D81B60 100%);
-        border: 1px solid rgba(255,215,0,0.4);
+      .festive-action-btn {
+        background: linear-gradient(135deg, #FF6F00 0%, #C2185B 100%);
+        border: 1px solid rgba(255, 215, 0, 0.55);
         color: #FFFFFF;
         font-weight: 700;
-        font-size: 12px;
-        padding: 6px 12px;
+        font-size: 11.5px;
+        padding: 5px 13px;
         border-radius: 9999px;
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
         cursor: pointer;
-        box-shadow: 0 0 15px rgba(255,140,0,0.4);
-        transition: all 0.25s ease;
+        box-shadow: 0 0 14px rgba(255, 140, 0, 0.5);
+        transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
-      .diwali-toggle-btn:hover {
-        transform: translateY(-1px) scale(1.04);
-        box-shadow: 0 0 25px rgba(255,165,0,0.65);
+      .festive-action-btn:hover {
+        transform: translateY(-2px) scale(1.06);
+        box-shadow: 0 0 22px rgba(255, 170, 0, 0.75);
       }
-      .diwali-toggle-btn:active {
-        transform: scale(0.96);
+      .festive-action-btn:active {
+        transform: scale(0.94);
       }
     `;
     document.head.appendChild(style);
   }
 
-  function create3DDiyaElement() {
+  // --- Create Interactive 3D Terracotta Diya Component ---
+  function createRealisticDiya() {
+    const stage = document.createElement('div');
+    stage.className = 'diwali-3d-diya-stage';
+    stage.title = 'Click to ignite golden Anar fountain!';
+
     const wrapper = document.createElement('div');
     wrapper.className = 'diya-3d-wrapper';
-    wrapper.title = 'Click to burst Diwali sparkles!';
 
     const aura = document.createElement('div');
-    aura.className = 'diya-aura';
+    aura.className = 'diya-radiation-aura';
+
+    const ember1 = document.createElement('div');
+    ember1.className = 'diya-micro-ember';
+    const ember2 = document.createElement('div');
+    ember2.className = 'diya-micro-ember';
+    const ember3 = document.createElement('div');
+    ember3.className = 'diya-micro-ember';
 
     const flame = document.createElement('div');
-    flame.className = 'diya-flame';
+    flame.className = 'diya-flame-envelope';
 
-    const flameInner = document.createElement('div');
-    flameInner.className = 'diya-flame-inner';
-    flame.appendChild(flameInner);
+    const blueBase = document.createElement('div');
+    blueBase.className = 'diya-flame-blue-base';
+    flame.appendChild(blueBase);
 
-    const rim = document.createElement('div');
-    rim.className = 'diya-clay-rim';
-
-    const wick = document.createElement('div');
-    wick.className = 'diya-wick-base';
-    rim.appendChild(wick);
+    const hotCore = document.createElement('div');
+    hotCore.className = 'diya-flame-hot-core';
+    flame.appendChild(hotCore);
 
     const bowl = document.createElement('div');
-    bowl.className = 'diya-clay-bowl';
+    bowl.className = 'diya-earthen-bowl';
+
+    const rim = document.createElement('div');
+    rim.className = 'diya-oil-rim';
+
+    const wick = document.createElement('div');
+    wick.className = 'diya-cotton-wick';
+    rim.appendChild(wick);
     bowl.appendChild(rim);
 
     wrapper.appendChild(aura);
+    wrapper.appendChild(ember1);
+    wrapper.appendChild(ember2);
+    wrapper.appendChild(ember3);
     wrapper.appendChild(flame);
     wrapper.appendChild(bowl);
+    stage.appendChild(wrapper);
 
-    wrapper.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const rect = wrapper.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 3;
-      launchAnarFountain(centerX, centerY);
+    // 3D Mouse Parallax Tilt
+    stage.addEventListener('mousemove', (e) => {
+      const rect = stage.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      wrapper.style.transform = `rotateY(${x * 32}deg) rotateX(${-y * 24}deg)`;
     });
 
-    return wrapper;
+    stage.addEventListener('mouseleave', () => {
+      wrapper.style.transform = 'rotateY(0deg) rotateX(0deg)';
+    });
+
+    // Clicking Diya ignites a towering golden Anar fountain!
+    stage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rect = stage.getBoundingClientRect();
+      groundFountains.push(new GroundAnar(rect.left + rect.width / 2, rect.top + rect.height / 2));
+    });
+
+    return stage;
   }
 
-  function injectFestiveUI() {
-    // 1. Insert Festive Banner above header
+  // --- Inject Festive Navigation & Controls ---
+  function injectUI() {
+    const existingRibbon = document.querySelector('.diwali-ribbon') || document.querySelector('.diwali-celebration-banner');
+    if (existingRibbon) existingRibbon.remove();
+
     const header = document.querySelector('header');
-    const banner = document.createElement('div');
-    banner.className = 'diwali-celebration-banner';
-    banner.innerHTML = `
-      <span class="text-base animate-pulse">🪔</span>
-      <span><strong>Shubh Deepavali!</strong> Celebrate Zenith '26 with Diwali 3D Fireworks & Diyas. Tap anywhere to burst crackers!</span>
-      <button id="burst-cracker-btn" class="diwali-toggle-btn ml-2">
-        <span>💥 Burst Cracker</span>
-      </button>
-      <button id="toggle-sound-btn" class="px-2.5 py-1 text-xs rounded-full bg-slate-900/60 hover:bg-slate-800 text-amber-300 border border-amber-500/30 transition-all">
-        <span id="sound-icon">🔊 Sound ON</span>
-      </button>
+    const ribbon = document.createElement('div');
+    ribbon.className = 'diwali-ribbon';
+    ribbon.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-xl animate-bounce">🪔</span>
+        <span><strong>Shubh Deepavali!</strong> Celebrate Zenith '26 with Photorealistic 3D Fireworks & Diyas. Tap anywhere to launch rockets!</span>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button id="btn-firework-burst" class="festive-action-btn">
+          <span>🚀 Sky-Shot</span>
+        </button>
+        <button id="btn-anar-fountain" class="festive-action-btn">
+          <span>✨ Anar Fountain</span>
+        </button>
+        <button id="btn-chakri-wheel" class="festive-action-btn">
+          <span>🌀 Ground Chakri</span>
+        </button>
+        <button id="btn-ladi-cracker" class="festive-action-btn">
+          <span>💥 100-Wala Ladi</span>
+        </button>
+        <button id="btn-audio-toggle" class="px-3 py-1 text-xs rounded-full bg-slate-900/80 hover:bg-slate-800 text-amber-300 border border-amber-500/40 transition-all font-semibold">
+          <span id="audio-status-label">${CONFIG.soundEnabled ? '🔊 Sound ON' : '🔇 Sound OFF'}</span>
+        </button>
+      </div>
     `;
 
     if (header && header.parentNode) {
-      header.parentNode.insertBefore(banner, header);
+      header.parentNode.insertBefore(ribbon, header);
     } else {
-      document.body.prepend(banner);
+      document.body.prepend(ribbon);
     }
 
-    // Connect Burst Cracker button
-    const burstBtn = document.getElementById('burst-cracker-btn');
-    if (burstBtn) {
-      burstBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const startX = window.innerWidth / 2 + (Math.random() - 0.5) * 200;
-        const targetX = window.innerWidth / 2 + (Math.random() - 0.5) * 400;
-        const targetY = 150 + Math.random() * 100;
-        rockets.push(new Rocket(startX, window.innerHeight, targetX, targetY));
-      });
-    }
+    // Connect action triggers
+    document.getElementById('btn-firework-burst')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const startX = window.innerWidth / 2 + (Math.random() - 0.5) * 180;
+      const targetX = window.innerWidth / 2 + (Math.random() - 0.5) * 380;
+      const targetY = 110 + Math.random() * 140;
+      rockets.push(new Rocket(startX, window.innerHeight, targetX, targetY));
+    });
 
-    // Connect Sound toggle
-    const soundBtn = document.getElementById('toggle-sound-btn');
-    const soundIcon = document.getElementById('sound-icon');
-    if (soundBtn && soundIcon) {
-      soundBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        CONFIG.soundEnabled = !CONFIG.soundEnabled;
-        soundIcon.textContent = CONFIG.soundEnabled ? '🔊 Sound ON' : '🔇 Sound OFF';
-        if (CONFIG.soundEnabled) getAudioContext();
-      });
-    }
+    document.getElementById('btn-anar-fountain')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rect = e.target.getBoundingClientRect();
+      groundFountains.push(new GroundAnar(rect.left + rect.width / 2, rect.top));
+    });
 
-    // 2. Place 3D Diyas flanking the Hero Section title
+    document.getElementById('btn-chakri-wheel')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      chakris.push(new GroundChakri(window.innerWidth / 2 + (Math.random() - 0.5) * 120, window.innerHeight - 85));
+    });
+
+    document.getElementById('btn-ladi-cracker')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      new CrackerLadi(window.innerWidth / 2, window.innerHeight * 0.35);
+    });
+
+    document.getElementById('btn-audio-toggle')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      CONFIG.soundEnabled = !CONFIG.soundEnabled;
+      try {
+        localStorage.setItem('zenith_diwali_sound', CONFIG.soundEnabled ? 'true' : 'false');
+      } catch (err) {}
+      const lbl = document.getElementById('audio-status-label');
+      if (lbl) lbl.textContent = CONFIG.soundEnabled ? '🔊 Sound ON' : '🔇 Sound OFF';
+      if (CONFIG.soundEnabled) getAudioContext();
+    });
+
+    // 2. Insert 3D Terracotta Diyas in the Hero Section
     const heroSection = document.querySelector('section');
     if (heroSection) {
+      // Clear any prior diya elements
+      heroSection.querySelectorAll('.diya-row-container').forEach(el => el.remove());
+
       const heroContent = heroSection.querySelector('.max-w-7xl') || heroSection;
-      const diyaContainer = document.createElement('div');
-      diyaContainer.className = 'flex items-center justify-center gap-8 sm:gap-16 my-4';
+      const diyaRow = document.createElement('div');
+      diyaRow.className = 'diya-row-container flex items-center justify-center gap-6 sm:gap-16 my-6';
 
-      const leftDiya = create3DDiyaElement();
-      const rightDiya = create3DDiyaElement();
+      const leftDiya = createRealisticDiya();
+      const rightDiya = createRealisticDiya();
 
-      const diyaTagline = document.createElement('div');
-      diyaTagline.className = 'text-center';
-      diyaTagline.innerHTML = `
-        <span class="text-xs uppercase tracking-widest text-amber-400 font-bold block mb-1">✨ FESTIVE CELEBRATION ✨</span>
-        <span class="text-sm sm:text-base text-slate-300 font-medium">Click on any Diya lamp to ignite the Diwali Anar fireworks!</span>
+      const caption = document.createElement('div');
+      caption.className = 'text-center';
+      caption.innerHTML = `
+        <span class="text-xs uppercase tracking-widest text-amber-400 font-bold block mb-1">✨ PHOTOREALISTIC 3D DIYAS & FIREWORKS ✨</span>
+        <span class="text-xs sm:text-sm text-slate-300 font-medium">Click on any 3D Diya to ignite an authentic Diwali Anar spark fountain!</span>
       `;
 
-      diyaContainer.appendChild(leftDiya);
-      diyaContainer.appendChild(diyaTagline);
-      diyaContainer.appendChild(rightDiya);
+      diyaRow.appendChild(leftDiya);
+      diyaRow.appendChild(caption);
+      diyaRow.appendChild(rightDiya);
 
       const title = heroContent.querySelector('h1');
       if (title && title.parentNode) {
-        title.parentNode.insertBefore(diyaContainer, title.nextSibling);
+        title.parentNode.insertBefore(diyaRow, title.nextSibling);
       } else {
-        heroContent.appendChild(diyaContainer);
+        heroContent.appendChild(diyaRow);
       }
     }
   }
 
-  // Auto initialize when DOM is ready
+  // Initialize once DOM is ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initDiwaliEngine);
+    document.addEventListener('DOMContentLoaded', initEngine);
   } else {
-    initDiwaliEngine();
+    initEngine();
   }
 })();
