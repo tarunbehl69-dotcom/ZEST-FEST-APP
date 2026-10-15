@@ -1,0 +1,17 @@
+# Virtual Environment
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Android & Gradle
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+*.apk
+
+# macOS
+.DS_Store

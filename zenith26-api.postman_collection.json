@@ -1,0 +1,277 @@
+{
+  "info": {
+    "_postman_id": "a913eaf7-d95b-4f7d-adfd-zenith26postman",
+    "name": "Zenith '26 College Fest Management System API",
+    "description": "Comprehensive API collection for Zenith '26 Fest System, covering all endpoints, query parameters, validation error cases (400, 404, 409), and admin operations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Events",
+      "item": [
+        {
+          "name": "GET /api/events (All Events)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/events",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events"]
+            },
+            "description": "Fetch all fest events with live available_seats count calculated from registrations."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/events (Filtered by Category & Search)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/events?category=Technical&search=Code",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Technical",
+                  "description": "Category filter (Technical, Cultural, Sports, Gaming, Workshop)"
+                },
+                {
+                  "key": "search",
+                  "value": "Code",
+                  "description": "Case-insensitive title search"
+                }
+              ]
+            },
+            "description": "Filter events by category and title search term."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/events/{event_id} (Success - Event 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/events/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events", "1"]
+            },
+            "description": "Retrieve full details for event id 1 (Code Sprint 2.0)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/events/{event_id} (404 Not Found - Event 999)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/events/999",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events", "999"]
+            },
+            "description": "Attempt to retrieve non-existent event ID 999. Expected: 404 Not Found."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Registrations",
+      "item": [
+        {
+          "name": "POST /api/events/1/register [Success - 201 Created]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_name\": \"Aarav Sharma\",\n  \"roll_number\": \"23CS101\",\n  \"email\": \"aarav.sharma@college.edu\",\n  \"phone\": \"+91 98765 43210\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/events/1/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events", "1", "register"]
+            },
+            "description": "Successfully register a student for event 1. Expected: 201 Created."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/events/1/register [Missing Required Field - 400 Bad Request]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_name\": \"\",\n  \"roll_number\": \"23CS101\",\n  \"email\": \"aarav@college.edu\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/events/1/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events", "1", "register"]
+            },
+            "description": "Student name is empty string. Expected: 400 Bad Request."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/events/1/register [Invalid Email - 400 Bad Request]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_name\": \"Priya Singh\",\n  \"roll_number\": \"23IT042\",\n  \"email\": \"invalid-email-no-at-symbol\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/events/1/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events", "1", "register"]
+            },
+            "description": "Email is missing '@' symbol. Expected: 400 Bad Request."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/events/1/register [Duplicate Email - 409 Conflict]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_name\": \"Aarav Sharma\",\n  \"roll_number\": \"23CS101\",\n  \"email\": \"aarav.sharma@college.edu\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/events/1/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events", "1", "register"]
+            },
+            "description": "Re-submitting the same email for the same event. Expected: 409 Conflict."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/registrations (All Registrations)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/registrations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "registrations"]
+            },
+            "description": "Retrieve all registrations including event titles for the admin dashboard."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/registrations?event_id=1 (Filtered by Event)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/registrations?event_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "registrations"],
+              "query": [
+                {
+                  "key": "event_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Retrieve registrations filtered to a specific event."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Admin & Analytics",
+      "item": [
+        {
+          "name": "GET /api/stats (Live Dashboard Numbers)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stats"]
+            },
+            "description": "Compute live aggregate stats: total events, total registrations, overall utilization %, upcoming count, and breakdown by category."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/events [Stretch Goal - Create Event]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Drone Obstacle Grand Prix\",\n  \"category\": \"Technical\",\n  \"description\": \"FPV drone racing through laser gates.\",\n  \"event_date\": \"2026-11-15\",\n  \"event_time\": \"03:00 PM\",\n  \"venue\": \"Open Quadrangle\",\n  \"capacity\": 25,\n  \"fee\": 100,\n  \"icon\": \"🛸\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/events",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events"]
+            },
+            "description": "Admin creates a new event with capacity and details. Expected: 201 Created."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/registrations/1 [Stretch Goal - Cancel Registration]",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/registrations/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "registrations", "1"]
+            },
+            "description": "Admin cancels registration with ID 1. Expected: 200 OK."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+# Ignore virtual environments
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Ignore Android build artifacts and SDK
+app/build/
+.gradle/
+local.properties
+*.iml
+
+# Ignore OS junk
+.DS_Store
+Thumbs.db
